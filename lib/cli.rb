@@ -21,66 +21,123 @@
 #   puts arg
 # end
 require_relative "./calculator"
+require_relative "./printer"
 
 class Cli
   attr_accessor :command_array, :result_array
 
   # start of string, 0 or more digits, "d", 1 or more digits, end of string
-  @@valid_dice_regex = /\A\d*d\d+\z/
-  
+  valid_single_clause = /(\d*d\d+|\d+)/
+  @@valid_dice_regex = /\A#{valid_single_clause}\z/
+  @@multi_clause_single_regex = /\A#{valid_single_clause}|\+|\-\z/
 
   def initialize(arg_array)
     @command_array = arg_array
     @result_array = []
-    @calc = Calculator.new  
+    @calc = Calculator.new
+    @printer = Printer.new
   end
 
   def run
+    # @printer.print_rolling(ARGV)
+
     no_arg = ARGV.length == 0
     command_is_single = ARGV.length == 1
     command_has_arithm = command_array.any?(/(\+|\-)/)
     
     if no_arg
-      @calc.roll
-    end
+      process_no_clause
 
-    if command_is_single
-      command = ARGV[0]
-
-      if validate_input("single roll", command)
-        split_command = command.split("d")
-        
-        if split_command[0] == ""
-          number_of_dice = 1
-        else
-          number_of_dice = split_command[0].to_i
-        end
-
-        dice_value = split_command[1].to_i
-        @calc.roll(number_of_dice, dice_value)
-      else
-        print_error("invalid dice roll format")
-      end
-    end
-
-
-    if command_has_arithm
-      puts "arithm"
+    elsif command_is_single
+      clause = ARGV[0]
+      process_single_clause(clause)
+    # elsif command_has_arithm
     else
-      puts "no arithm"
+      process_multi_clause(ARGV)
     end
 
 
+    # if command_has_arithm
+    #   puts "arithm"
+    # else
+    #   puts "no arithm"
+    # end
   end
 
   def validate_input(input_type, input)
     case input_type
     when "single roll"
       return input.match?(@@valid_dice_regex)
+    when "multi clause"
+      # input.each do |c|
+      #   puts c.match?(@@multi_clause_single_regex)
+      # end
+      return input.reject{|c|c.match?(@@multi_clause_single_regex)}.length == 0
     end
   end
 
-  def print_result
+
+  def process_no_clause
+    @printer.print_rolling("")
+    @result_array.push(@calc.roll)
+    print_result(@result_array)
+  end
+
+  def process_single_clause(clause, operator = "+")
+    if validate_input("single roll", clause)
+      result_array = []
+
+      clause_is_number = clause.match?(/\A\d+\z/)
+      
+      if clause_is_number
+        result_array.push({
+          results: [clause.to_i],
+          reduction: clause.to_i 
+        })
+
+      else
+        @printer.print_rolling(clause)
+
+        split_clause = clause.split("d")
+        
+        if split_clause[0] == ""
+          number_of_dice = 1
+        else
+          number_of_dice = split_clause[0].to_i
+        end
+
+        dice_value = split_clause[1].to_i
+        result_array.push(@calc.roll(number_of_dice, dice_value))  
+
+      end
+
+      print_result(result_array)
+    else
+      print_error("invalid dice roll format")
+    end
+  end
+
+  def process_multi_clause(arguments_array)
+    if validate_input("multi clause", arguments_array)
+      if arguments_array.any?(/(\+|\-)/)
+        puts "math"
+
+      else
+        arguments_array.each do |a|
+          process_single_clause(a)
+          puts
+        end
+      end
+
+    else
+      print_error("invalid dice roll format")
+    end
+  end
+
+  def print_result(result_array)
+    result = @calc.calculate(result_array)
+    @printer.print_roll_results(result_array)
+    @printer.print_results(result)
   end
 
 
@@ -94,7 +151,6 @@ class Cli
 
     puts "ERROR: #{message}"
     return
-    puts "stuff3"
   end
 
 end

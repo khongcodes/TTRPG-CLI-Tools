@@ -2,32 +2,24 @@ class Calculator
 
   def roll(number = 1, dice = 6)
     result = []
-    puts "rolling #{number}d#{dice}"
     
     number.times do
       dice_result = rand(1..dice)
       result.push(dice_result)
     end
 
-    if number != 1
-      print_dice(result)
-      puts
-    end
 
-    print_sum(result)
+    # if minus came before this, make reduction value negative
+    return {
+      type: "simple",
+      results: result,
+      reduction: result.sum
+    }
   end
 
-  def print_marker
-    print "=> "
+  def calculate(clause_array)
+    return clause_array.map {|c|c[:reduction]}.sum
+    # add reduction results from each dice
   end
 
-  def print_dice(array)
-    # print_marker
-    print array.join(", ")
-  end
-
-  def print_sum(dice_array)
-    print_marker
-    puts dice_array.sum
-  end
 end
