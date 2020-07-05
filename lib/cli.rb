@@ -22,9 +22,10 @@
 # end
 require_relative "./calculator"
 require_relative "./printer"
+require "optparse"
 
 class Cli
-  attr_accessor :command_array, :result_array, :memo
+  attr_accessor :command_array, :result_array, :memo, :options_opened
 
   # start of string, 0 or more digits, "d", 1 or more digits, end of string
   valid_single_clause = /(\d*d\d+|\d+)/
@@ -38,10 +39,36 @@ class Cli
     @calc = Calculator.new
     @printer = Printer.new
     @memo = nil
+    @options_opened = false
+    @options = {}
+  end
+
+  def option_parse
+    OptionParser.new do |parser|
+      parser.banner = "Usage: roll-cli.rb [options]"
+  
+      parser.on("-h", "--help", "Show this help message") do
+        @options_opened = true
+        puts parser
+      end
+
+      parser.on("-n", "--name NAME", "The name of the person to greet.") do |v|
+        @options_opened = true
+        @options[:name] = v
+      end
+    end.parse!
   end
 
   def run
+    option_parse
+
+    puts "#{ARGV}"
+    puts @options_opened
+    puts @options
+
     # @printer.print_rolling(ARGV)
+
+    return if @options_opened
 
     no_arg = ARGV.length == 0
     command_is_single = ARGV.length == 1
@@ -65,9 +92,6 @@ class Cli
     when "single roll"
       return input.match?(@@valid_dice_regex)
     when "multi clause"
-      # input.each do |c|
-      #   puts c.match?(@@multi_clause_single_regex)
-      # end
       return input.reject{|c|c.match?(@@multi_clause_single_regex)}.length == 0
     end
   end
@@ -272,6 +296,12 @@ class Cli
 
     puts "ERROR: #{message}"
     return
+  end
+
+  def get_highest
+  end
+
+  def get_lowest
   end
 
 end
