@@ -11,7 +11,6 @@ class Calculator
 
     # if minus came before this, make reduction value negative
     return {
-      type: "simple",
       results: result,
       reduction: result.sum
     }

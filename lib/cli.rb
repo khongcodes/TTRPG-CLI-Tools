@@ -24,10 +24,11 @@ require_relative "./calculator"
 require_relative "./printer"
 
 class Cli
-  attr_accessor :command_array, :result_array
+  attr_accessor :command_array, :result_array, :memo
 
   # start of string, 0 or more digits, "d", 1 or more digits, end of string
   valid_single_clause = /(\d*d\d+|\d+)/
+  @@arith_operator_regex = /(\+|\-)/
   @@valid_dice_regex = /\A#{valid_single_clause}\z/
   @@multi_clause_single_regex = /\A#{valid_single_clause}|\+|\-\z/
 
@@ -36,6 +37,7 @@ class Cli
     @result_array = []
     @calc = Calculator.new
     @printer = Printer.new
+    @memo = nil
   end
 
   def run
@@ -43,7 +45,6 @@ class Cli
 
     no_arg = ARGV.length == 0
     command_is_single = ARGV.length == 1
-    command_has_arithm = command_array.any?(/(\+|\-)/)
     
     if no_arg
       process_no_clause
@@ -51,17 +52,12 @@ class Cli
     elsif command_is_single
       clause = ARGV[0]
       process_single_clause(clause)
-    # elsif command_has_arithm
+
     else
       process_multi_clause(ARGV)
+
     end
 
-
-    # if command_has_arithm
-    #   puts "arithm"
-    # else
-    #   puts "no arithm"
-    # end
   end
 
   def validate_input(input_type, input)
@@ -88,7 +84,6 @@ class Cli
       result_array = []
 
       clause_is_number = clause.match?(/\A\d+\z/)
-      
       if clause_is_number
         result_array.push({
           results: [clause.to_i],
@@ -117,20 +112,141 @@ class Cli
     end
   end
 
-  def process_multi_clause(arguments_array)
-    if validate_input("multi clause", arguments_array)
-      if arguments_array.any?(/(\+|\-)/)
-        puts "math"
+
+  def process_reduce_clause(array)
+    print "rolling "
+    array.each_with_index do |c, index|
+      print " #{c[:operator]} " unless index == 0
+      print "#{c[:value]}"
+    end
+    puts
+
+    roll_results = []
+
+    array.each do |clause|
+      operator_factor = clause[:operator] == "+" ? 1 : -1
+      clause_is_number = clause[:value].match?(/\A\d+\z/)
+
+      if clause_is_number
+        operated_number = operator_factor * clause[:value].to_i
+        roll_results.push({
+          results: [operated_number],
+          reduction: operated_number
+        })
 
       else
-        arguments_array.each do |a|
-          process_single_clause(a)
-          puts
+        # @printer.print_rolling(clause[:value])
+        split_value = clause[:value].split("d")
+        
+        if split_value[0] == ""
+          number_of_dice = 1
+        else
+          number_of_dice = split_value[0].to_i
         end
+
+        dice_value = split_value[1].to_i
+
+        rolled_value = @calc.roll(number_of_dice, dice_value)
+        rolled_value[:reduction] = operator_factor * rolled_value[:reduction]
+        rolled_value[:results].map!{|n|operator_factor * n}
+
+        roll_results.push(rolled_value)
       end
 
-    else
+    end
+
+    # puts "#{roll_results}"
+    print_result(roll_results)
+  end
+
+  def process_multi_clause(arguments_array)
+  
+    if arguments_array[0].match?(@@arith_operator_regex)
+      print_error("first arg operator")
+
+    elsif arguments_array[arguments_array.length - 1].match?(@@arith_operator_regex)
+      print_error("last arg operator")
+
+    elsif !validate_input("multi clause", arguments_array)
       print_error("invalid dice roll format")
+
+    else
+      arith_present = arguments_array.any?(@@arith_operator_regex)
+
+      # PREPARE TO MATH
+      if arith_present
+        # puts "#{arguments_array}"
+        sorted_clauses = []
+
+        arguments_array.each_with_index do |arg, index|
+          this_arg_is_operator = arg.match?(@@arith_operator_regex)
+          
+          # if arg is last element in array, next_arg_is_operator is automatically false
+          # otherwise check if next arg is operator
+          if index == arguments_array.length - 1
+            next_arg_is_operator = false
+          else
+            next_arg_is_operator = arguments_array[index + 1].match?(@@arith_operator_regex) 
+          end
+
+          # at first arg
+          # if next arg is not an operator, push simple value to sorted_clauses
+          if index == 0 && !next_arg_is_operator
+            sorted_clauses.push(arg)
+          
+          # if next arg is an operator, prepare a calculation group
+          elsif index == 0
+            sorted_clauses.push([{
+              value: arg,
+              operator: "+"
+            }])
+            @memo = 0
+
+          # for arguments not the first argument -
+          else
+            last_arg_was_operator = arguments_array[index - 1].match?(@@arith_operator_regex)
+
+            # if next arg is operator and this is not and last was not, prepare a calculation group
+            if next_arg_is_operator && !this_arg_is_operator && !last_arg_was_operator
+              sorted_clauses.push([{
+                value: arg,
+                operator: "+"
+              }])
+              @memo = sorted_clauses.length - 1
+              
+            # if last arg was operator, apply to this dice value and add to memo-d calculation group
+            elsif last_arg_was_operator && !this_arg_is_operator
+              sorted_clauses[@memo].push({
+                value: arg,
+                operator: arguments_array[index - 1]
+              })
+
+            # if clauses separate from calculation groups
+            elsif !last_arg_was_operator && !this_arg_is_operator
+              sorted_clauses.push(arg)
+            end
+
+          end
+
+        end
+
+        # puts "#{sorted_clauses.map{|c|c.class}}"
+        # puts "#{sorted_clauses}"
+
+        sorted_clauses.each do |c|
+          if c.class == String
+            process_single_clause(c)
+          else
+            process_reduce_clause(c)
+          end
+        end
+
+      else # !arith_present
+        arguments_array.each do |a|
+          process_single_clause(a)
+        end
+      end
+      
     end
   end
 
@@ -138,6 +254,7 @@ class Cli
     result = @calc.calculate(result_array)
     @printer.print_roll_results(result_array)
     @printer.print_results(result)
+    puts
   end
 
 
@@ -147,6 +264,10 @@ class Cli
     case error_type
     when "invalid dice roll format"
       message = "input is invalid format.\nTry formatting like \"2d6\" or \"d20\"."
+    when "first arg operator"
+      message = "first argument cannot be operator."
+    when "last arg operator"
+      message = "last argument cannot be operator."
     end
 
     puts "ERROR: #{message}"
