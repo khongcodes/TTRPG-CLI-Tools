@@ -90,8 +90,8 @@ class Cli
     elsif command_is_single
       clause = ARGV[0]
       if validate_input("single roll", clause)
-        puts @controller.single_clause(clause)
-        # print_result(@controller.single_clause(clause))
+        # puts @controller.single_clause(clause)
+        print_result(@controller.single_clause(clause))
       end
 
     else # multiple arguments
@@ -108,14 +108,15 @@ class Cli
   end
 
 
-  def print_result(dice_roll_outcomes_array, roll_label="1d6")
-    @printer.print_rolling(roll_label)
+  def print_result(result_obj)
+    @printer.print_rolling(result_obj[:roll_label])
 
-    sum_of_reductions = @calc.calculate(dice_roll_outcomes_array)
-    @printer.print_roll_outcomes(dice_roll_outcomes_array)
+    sum_of_reductions = @calc.calculate(result_obj[:dice_outcome_array])
+    @printer.print_roll_outcomes(result_obj[:dice_outcome_array])
     @printer.print_clause_result(sum_of_reductions)
     puts
   end
+
 
 
   def validate_input(input_type, input)
@@ -130,8 +131,9 @@ class Cli
         error = "first/last arg operator"
 
       # add elsif for consecutive operator arguments
+      # add elsif for modifier number too large
 
-      elsif !input.reject{|c|c.match?(@@multi_clause_single_regex)}.length == 0
+      elsif input.reject{|c|c.match?(@@multi_clause_single_regex)}.length != 0
         error = "invalid dice roll format"
       end
     end

@@ -9,7 +9,7 @@ class Printer
       print obj[:results].join(", ")
       
       # if result_array has multiple items and this item is not the last one
-      print " / " if index != result_array.length - 1
+      print "  /  " if index != result_array.length - 1
     end
     puts
   end

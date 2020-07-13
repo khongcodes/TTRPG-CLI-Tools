@@ -5,6 +5,8 @@ require_relative "./printer"
 class Controller
   
   @@arith_operator_regex = /(\+|\-)/
+  @@number_clause = /\d+/
+  @@modified_clause = /[hl]\d*{\d*d\d+}/
 
   def initialize
     @calculator = Calculator.new
@@ -13,15 +15,14 @@ class Controller
 
 
   def no_clause 
-    puts "entering Controller#no_clause"
-    puts
-    @printer.print_rolling
+    dice_outcomes = []
+    dice_outcomes.push(@calculator.roll)
 
-    result = []
-    result.push(@calculator.roll)
+    result = {
+      dice_outcome_array: dice_outcomes,
+      roll_label: "1d6"
+    }
     
-    puts
-    puts "exiting Controller#no_clause"
     return result
   end
 
@@ -29,15 +30,39 @@ class Controller
   def single_clause(clause, operator = "+")
     puts "entering Controller#single_clause"
     puts
-    @printer.print_rolling(clause)
 
-    result = []
-    result.push({"type": "single"}) #TODO
+    dice_outcomes = []
 
-    # {
-    #   results: [clause.to_i],
-    #   reduction: clause.to_i 
-    # }
+    clause_is_number = clause.match?(/\A#{@@number_clause}\z/)
+    clause_is_modified = clause.match?(/\A#{@@modified_clause}\z/)
+
+    if clause_is_number
+      dice_outcomes.push({
+        results: [clause.to_i],
+        reduction: clause.to_i 
+      })
+
+    elsif clause_is_modified
+      flag = clause.split("{")[0]
+      puts flag
+
+    else
+      split_clause = clause.split("d")
+      
+      if split_clause[0] == ""
+        number_of_dice = 1
+      else
+        number_of_dice = split_clause[0].to_i
+      end
+
+      dice_value = split_clause[1].to_i
+      dice_outcomes.push(@calculator.roll(number_of_dice, dice_value))
+    end
+
+    result = {
+      dice_outcome_array: dice_outcomes,
+      roll_label: clause
+    }
 
     puts
     puts "exiting Controller#single_clause"
@@ -46,18 +71,16 @@ class Controller
 
 
   def multi_clause(rolls_array)
-    puts "entering Controller#multi_clause"
-    puts
-
+    # puts "entering Controller#multi_clause(#{rolls_array})"
+    # puts
 
     roll_label = ""
+    dice_outcomes = []
+
     rolls_array.each_with_index do |c, index|
       roll_label.concat(" #{c[:operator]} ") unless index == 0
       roll_label.concat(c[:value])
     end
-    # puts
-
-    result = []
 
     rolls_array.each do |clause|
       operator_factor = clause[:operator] == "+" ? 1 : -1
@@ -65,13 +88,12 @@ class Controller
 
       if clause_is_number
         operated_number = operator_factor * clause[:value].to_i
-        result.push({
+        dice_outcomes.push({
           results: [operated_number],
           reduction: operated_number
         })
 
       else
-        # @printer.print_rolling(clause[:value])
         split_value = clause[:value].split("d")
         
         if split_value[0] == ""
@@ -86,24 +108,27 @@ class Controller
         rolled_value[:reduction] = operator_factor * rolled_value[:reduction]
         rolled_value[:results].map!{|n|operator_factor * n}
 
-        result.push(rolled_value)
+        dice_outcomes.push(rolled_value)
       end
 
     end
 
-    # result.push({"type": "multi"}) #TODO
+    result = {
+      dice_outcome_array: dice_outcomes,
+      roll_label: roll_label
+    }
 
-    puts
-    puts "exiting Controller#multi_clause"
+    # puts
+    # puts "exiting Controller#multi_clause"
     return result
   end
 
 
   def multi_arg(arguments_array)
-    puts "entering Controller#multi_roll"
-    puts
+    # puts "entering Controller#multi_roll"
+    # puts
 
-    result = []
+    clauses_result = []
     arith_present = arguments_array.any?(@@arith_operator_regex)
 
     if arith_present
@@ -164,20 +189,21 @@ class Controller
         end
       end
 
-      puts "sorted clauses: #{sorted_clauses}"
+      # puts "sorted clauses: #{sorted_clauses}"
       
       sorted_clauses.each do |c|
         combined_clause_obj = c.class == String ? single_clause(c) : multi_clause(c)
-        result.push(combined_clause_obj)
+        clauses_result.push(combined_clause_obj)
       end
 
     else
-      result.concat(arguments_array.map{|arg| single_clause(arg)[0]})
+      clauses_result.concat(arguments_array.map{|arg| single_clause(arg)})
+      puts clauses_result
     end
 
-    puts
-    puts "exiting Controller#multi_roll"
-    return result
+    # puts
+    # puts "exiting Controller#multi_roll"
+    return clauses_result
   end
 
 end
