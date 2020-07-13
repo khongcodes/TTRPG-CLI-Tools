@@ -102,7 +102,7 @@ class Cli
       
       if !error && /\A#{@@modified_clause}\z/.match?(input)
         split_input = input.split(/{|}/)
-        flag_num = split_input[0][1] || 1
+        flag_num = split_input[0].split(/[hl]/)[1] || 1
         dice_num = split_input[1].split("d")[0]
         error = "modifier too large" if flag_num.to_i > dice_num.to_i
       end
@@ -133,14 +133,17 @@ class Cli
             split_input = a.split(/{|}/)
             flag = split_input[0]
             dice = split_input[1]
-            flag_num = flag[1] || 1
+            flag_num = flag.split(/[hl]/)[1] || 1
             dice_num = dice.split("d")[0]
             modifier_too_large = flag_num.to_i > dice_num.to_i
-            break
+            # puts modifier_too_large
+            # break
 
           end  
         end
       end
+
+      puts modifier_too_large
 
       
       if zero_sided_dice
@@ -158,7 +161,7 @@ class Cli
       end
     end
 
-    puts "error: #{error ?  error : "none"}"
+    # puts "error: #{error ?  error : "none"}"
     puts
     print_error(error) if error
     return !error
@@ -182,9 +185,11 @@ class Cli
     when "modifier too large"
       message = "Modifier cannot be higher than the number of dice rolled.\nTry entering the -h tag to see HELP."
     end
-
+  
     puts "ERROR: #{message}"
   end
+
+  
 
 end
 
