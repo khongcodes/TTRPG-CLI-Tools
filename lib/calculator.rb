@@ -17,8 +17,10 @@ class Calculator
   end
 
   def calculate(clause_array)
-    return clause_array.map {|c|c[:reduction]}.sum
+    # puts "tst"
     # add reduction results from each dice
+    # puts "#{clause_array}"
+    return clause_array.map {|c|c[:reduction]}.sum
   end
-
+# 
 end

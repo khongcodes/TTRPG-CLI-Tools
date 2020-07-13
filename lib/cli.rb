@@ -22,13 +22,17 @@
 # end
 require_relative "./calculator"
 require_relative "./printer"
+require_relative "./controller"
 require "optparse"
 
 class Cli
   attr_accessor :command_array, :result_array, :memo, :options_opened
 
   # start of string, 0 or more digits, "d", 1 or more digits, end of string
-  valid_single_clause = /(\d*d\d+|\d+)/
+  regular_clause = /\d*d\d+/
+  number_clause = /\d+/
+  modified_clause = /[hl]\d*{\d*d\d+}/
+  valid_single_clause = /(#{regular_clause}|#{number_clause}|#{modified_clause})/
   @@arith_operator_regex = /(\+|\-)/
   @@valid_dice_regex = /\A#{valid_single_clause}\z/
   @@multi_clause_single_regex = /\A#{valid_single_clause}|\+|\-\z/
@@ -38,6 +42,7 @@ class Cli
     @result_array = []
     @calc = Calculator.new
     @printer = Printer.new
+    @controller = Controller.new
     @memo = nil
     @options_opened = false
     @options = {}
@@ -52,7 +57,12 @@ class Cli
         puts parser
       end
 
-      parser.on("-n", "--name NAME", "The name of the person to greet.") do |v|
+      parser.on("-t", "--tarot NUMBER", "The number of tarot cards to draw") do |v|
+        @options_opened = true
+        @options[:name] = v
+      end
+
+      parser.on("-p", "--playing_card NUMBER", "The number of playing cards to draw") do |v|
         @options_opened = true
         @options[:name] = v
       end
@@ -60,60 +70,100 @@ class Cli
   end
 
   def run
+    puts "entering Cli#run"
+    puts
     option_parse
 
-    puts "#{ARGV}"
-    puts @options_opened
-    puts @options
+    puts "Arguments: #{ARGV}"
+    # puts @options_opened
+    # puts @options
 
-    # @printer.print_rolling(ARGV)
 
-    return if @options_opened
+    # return if @options_opened
 
     no_arg = ARGV.length == 0
     command_is_single = ARGV.length == 1
     
     if no_arg
-      process_no_clause
+      print_result(@controller.no_clause)
 
     elsif command_is_single
       clause = ARGV[0]
-      process_single_clause(clause)
+      if validate_input("single roll", clause)
+        puts @controller.single_clause(clause)
+        # print_result(@controller.single_clause(clause))
+      end
 
-    else
-      process_multi_clause(ARGV)
-
+    else # multiple arguments
+      if validate_input("multi clause", ARGV)
+        # multi-clause, single clause
+        # [[{}, {}], [{}]]
+        agg_result = @controller.multi_arg(ARGV)
+        agg_result.each {|r| print_result(r)}
+      end
     end
-
+    
+    puts
+    puts "exiting Cli#run"
   end
+
+
+  def print_result(dice_roll_outcomes_array, roll_label="1d6")
+    @printer.print_rolling(roll_label)
+
+    sum_of_reductions = @calc.calculate(dice_roll_outcomes_array)
+    @printer.print_roll_outcomes(dice_roll_outcomes_array)
+    @printer.print_clause_result(sum_of_reductions)
+    puts
+  end
+
 
   def validate_input(input_type, input)
+    error = false
+
     case input_type
     when "single roll"
-      return input.match?(@@valid_dice_regex)
+      error = "invalid dice roll format" if !input.match?(@@valid_dice_regex)
+    
     when "multi clause"
-      return input.reject{|c|c.match?(@@multi_clause_single_regex)}.length == 0
+      if input[0].match?(@@arith_operator_regex) || input[input.length - 1].match?(@@arith_operator_regex)
+        error = "first/last arg operator"
+
+      # add elsif for consecutive operator arguments
+
+      elsif !input.reject{|c|c.match?(@@multi_clause_single_regex)}.length == 0
+        error = "invalid dice roll format"
+      end
     end
+
+    puts "error: #{error}"
+    print_error(error) if error
+    return !error
   end
 
 
-  def process_no_clause
-    @printer.print_rolling("")
-    @result_array.push(@calc.roll)
-    print_result(@result_array)
-  end
+
+
+
+
 
   def process_single_clause(clause, operator = "+")
     if validate_input("single roll", clause)
       result_array = []
 
       clause_is_number = clause.match?(/\A\d+\z/)
+      clause_is_modified = clause.match?(/\A[hl]\d*{\d*d\d+}\z/)
+
       if clause_is_number
         result_array.push({
           results: [clause.to_i],
           reduction: clause.to_i 
         })
 
+      elsif clause_is_modified
+        @printer.print_rolling(clause)
+        flag = clause.split("{")[0]
+        
       else
         @printer.print_rolling(clause)
 
@@ -274,12 +324,12 @@ class Cli
     end
   end
 
-  def print_result(result_array)
-    result = @calc.calculate(result_array)
-    @printer.print_roll_results(result_array)
-    @printer.print_results(result)
-    puts
-  end
+  # def print_result(result_array)
+  #   result = @calc.calculate(result_array)
+    # @printer.print_roll_results(result_array)
+    # @printer.print_results(result)
+    # puts
+  # end
 
 
   def print_error(error_type)
@@ -287,21 +337,12 @@ class Cli
 
     case error_type
     when "invalid dice roll format"
-      message = "input is invalid format.\nTry formatting like \"2d6\" or \"d20\"."
-    when "first arg operator"
-      message = "first argument cannot be operator."
-    when "last arg operator"
-      message = "last argument cannot be operator."
+      message = "input is invalid format.\nTry formatting like \"2d6\" or \"d20\" or \"l3{5d20}\".\nTry entering the -h tag to see HELP."
+    when "first/last arg operator"
+      message = "first and last arguments cannot be an arithmetic operator."
     end
 
     puts "ERROR: #{message}"
-    return
-  end
-
-  def get_highest
-  end
-
-  def get_lowest
   end
 
 end
