@@ -1,25 +1,3 @@
-# require 'optparse'
-
-# options = {}
-
-# OptionParser.new do |parser|
-#   parser.banner = "Usage: roll-cli.rb [options]"
-  
-#   parser.on("-h", "--help", "Show this help message") do
-#     puts parser
-#   end
-
-#   parser.on("-n", "--name NAME", "The name of the person to greet.") do |v|
-#     options[:name] = v
-#   end
-
-# end.parse!
-
-# puts "Hello #{ options[:name] }" if options[:name]
-
-# for arg in ARGV
-#   puts arg
-# end
 require_relative "./calculator"
 require_relative "./printer"
 require_relative "./controller"
@@ -31,8 +9,8 @@ class Cli
   # start of string, 0 or more digits, "d", 1 or more digits, end of string
   regular_clause = /\d*d\d+/
   number_clause = /\d+/
-  modified_clause = /[hl]\d*{\d*d\d+}/
-  valid_single_clause = /(#{regular_clause}|#{number_clause}|#{modified_clause})/
+  @@modified_clause = /[hl]\d*{#{regular_clause}}/
+  valid_single_clause = /(#{regular_clause}|#{number_clause}|#{@@modified_clause})/
   @@arith_operator_regex = /(\+|\-)/
   @@valid_dice_regex = /\A#{valid_single_clause}\z/
   @@multi_clause_single_regex = /\A#{valid_single_clause}|\+|\-\z/
@@ -118,16 +96,63 @@ class Cli
 
     case input_type
     when "single roll"
+      error = "zero sided dice" if /\d*d0/.match?(input)
       error = "invalid dice roll format" if !input.match?(@@valid_dice_regex)
+      error = "modifier zero" if /\A[hl]0{.+}\z/.match?(input)
+      
+      if !error && /\A#{@@modified_clause}\z/.match?(input)
+        split_input = input.split(/{|}/)
+        flag_num = split_input[0][1] || 1
+        dice_num = split_input[1].split("d")[0]
+        error = "modifier too large" if flag_num.to_i > dice_num.to_i
+      end
     
     when "multi clause"
-      if input[0].match?(@@arith_operator_regex) || input[input.length - 1].match?(@@arith_operator_regex)
+      puts "input: #{input}"
+      
+      zero_sided_dice = false
+      consecutive_operators = false
+      modifier_is_zero = false
+      modifier_too_large = false
+
+      input.each_with_index do |a, index|
+        if /\A\d*d0\z/.match?(a)
+          zero_sided_dice = true
+          break
+
+        elsif index < input.length - 2 && @@arith_operator_regex.match?(a)
+          consecutive_operators = true if @@arith_operator_regex.match?(input[index + 1])
+          break
+
+        elsif /\A#{@@modified_clause}\z/.match?(a)
+          if /\A[hl]0{.+}\z/.match?(a)
+            modifier_is_zero = true
+            break
+
+          else
+            split_input = a.split(/{|}/)
+            flag = split_input[0]
+            dice = split_input[1]
+            flag_num = flag[1] || 1
+            dice_num = dice.split("d")[0]
+            modifier_too_large = flag_num.to_i > dice_num.to_i
+            break
+
+          end  
+        end
+      end
+
+      
+      if zero_sided_dice
+        error = "zero sided dice"
+      elsif input[0].match?(@@arith_operator_regex) || input[input.length - 1].match?(@@arith_operator_regex)
         error = "first/last arg operator"
-
-      # add elsif for consecutive operator arguments
-      # add elsif modifier number cannot be 0
-      # add elsif for modifier number too large
-
+      elsif consecutive_operators
+        error = "consecutive operators"
+      elsif modifier_is_zero
+        error = "modifier zero"
+      elsif modifier_too_large
+        error = "modifier too large"
       elsif input.reject{|c|c.match?(@@multi_clause_single_regex)}.length != 0
         error = "invalid dice roll format"
       end
@@ -144,10 +169,18 @@ class Cli
     message = ""
 
     case error_type
+    when "zero sided dice"
+      message = "Dice side value cannot be zero.\nTry entering the -h tag to see HELP."
     when "invalid dice roll format"
-      message = "input is invalid format.\nTry formatting like \"2d6\" or \"d20\" or \"l3{5d20}\".\nTry entering the -h tag to see HELP."
+      message = "Input is invalid format.\nTry formatting like \"2d6\" or \"d20\" or \"l3{5d20}\".\nTry entering the -h tag to see HELP."
     when "first/last arg operator"
-      message = "first and last arguments cannot be an arithmetic operator."
+      message = "First and last arguments cannot be an arithmetic operator.\nTry entering the -h tag to see HELP."
+    when "consecutive operators"
+      message = "Input cannot have consecutive operators.\nTry entering the -h tag to see HELP."
+    when "modifier zero"
+      message = "Modifier amount cannot be zero.\nTry entering the -h tag to see HELP."
+    when "modifier too large"
+      message = "Modifier cannot be higher than the number of dice rolled.\nTry entering the -h tag to see HELP."
     end
 
     puts "ERROR: #{message}"
@@ -156,58 +189,8 @@ class Cli
 end
 
 
-# roll 2d6
-# command = ARGV[0]
-# test1 = "2d6"
-# test2 = "2d6 + 2".split(" ")
-# test3 = "2d6 + 2 - 1d6".split(" ")
-# # command.split(" ")
-# command_has_arithm = ARGV.any?(/(\+|\-)/)
-# if command_has_arithm
-
-# end
-# puts 
-
-# roll 2d6
-# => 1 + 6 = 7
-# => 7
-
-# roll 4d6
-# => 4 + 2 + 4 + 5 = 15
-# => 15
-
-
-# options
-# ADVANTAGE - take best of X
-# roll 3d6 -h 2
-# roll 3d6 --highest 2
-# roll h(2)(3d6)
-# => 4, 4, 2
-# => 4 + 4 = 8
-# => 8
-
-# DISADVANTAGE - take worst of X
-# roll 3d6 -l 2
-# roll 3d6 --lowest 2
-# roll l(2)(3d6)
-# => 4, 4, 2
-# => 4 + 2 = 6
-# => 6
-
-# errorif: h(3)(2d6) or l(3)(2d6)
-# error: can't take highest 3 out of 2 dice
-
-# 1d20 + 2 + 1d6 - l(2d6)
-# => 16 / 2 / 5 / 3, 2
-# => 16 + 2 + 5 - 2 = 21
-# => 21
 
 ####################################################
-# fitd - take highest result
-# roll 4d6 -f
-# roll h(4d6)
-# => 5, 2, 1, 4
-# => 5
 
 # tarot
 # playing-card-deck
