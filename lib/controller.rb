@@ -28,35 +28,81 @@ class Controller
 
 
   def single_clause(clause, operator = "+")
-    puts "entering Controller#single_clause"
-    puts
+    # puts "entering Controller#single_clause"
+    # puts
 
     dice_outcomes = []
 
+    operator_factor = operator == "+" ? 1 : -1
     clause_is_number = clause.match?(/\A#{@@number_clause}\z/)
     clause_is_modified = clause.match?(/\A#{@@modified_clause}\z/)
 
     if clause_is_number
+      operated_number = operator_factor * clause.to_i
       dice_outcomes.push({
         results: [clause.to_i],
-        reduction: clause.to_i 
+        reduction: operated_number
       })
-
-    elsif clause_is_modified
-      flag = clause.split("{")[0]
-      puts flag
-
+    
     else
-      split_clause = clause.split("d")
-      
-      if split_clause[0] == ""
-        number_of_dice = 1
+
+      if clause_is_modified
+        flag = clause.split(/{|}/)[0]
+        split_clause = clause.split(/{|}/)[1].split("d")
+        
+        # puts "#{split_clause}"
+        # puts flag
+
+        number_of_dice = split_clause[0] == "" ? 1 : split_clause[0].to_i
+        dice_value = split_clause[1].to_i
+        unmodified_roll = @calculator.roll(number_of_dice, dice_value)
+        
+        # puts unmodified_roll
+
+        modify_number = flag[1] || 1
+        sorted_results = []
+
+        if flag[0] == "h"
+          sorted_array = unmodified_roll[:results].sort{|a,b| b <=> a}
+        elsif flag[0] == "l"
+          sorted_array = unmodified_roll[:results].sort{|a,b| a <=> b}
+        end
+
+        new_sum = sorted_array.slice(0, modify_number.to_i).sum
+
+        # puts "sorted array: #{sorted_array}"
+        # puts sorted_array.slice(0, modify_number.to_i).sum
+
+        pre_operator_roll = ({
+          results: sorted_array,
+          reduction: new_sum,
+          flag: flag
+        })
+
+
       else
-        number_of_dice = split_clause[0].to_i
+        split_clause = clause.split("d")
+      
+        if split_clause[0] == ""
+          number_of_dice = 1
+        else
+          number_of_dice = split_clause[0].to_i
+        end
+
+        dice_value = split_clause[1].to_i
+        pre_operator_roll = @calculator.roll(number_of_dice, dice_value)
       end
 
-      dice_value = split_clause[1].to_i
-      dice_outcomes.push(@calculator.roll(number_of_dice, dice_value))
+      if operator_factor < 0
+        dice_outcomes.push({
+          results: pre_operator_roll[:results].map{|n| n * operator_factor},
+          reduction: pre_operator_roll[:reduction] * operator_factor,
+          flag: pre_operator_roll[:flag] || nil
+        })
+      else
+        dice_outcomes.push(pre_operator_roll)
+      end
+    
     end
 
     result = {
@@ -64,16 +110,13 @@ class Controller
       roll_label: clause
     }
 
-    puts
-    puts "exiting Controller#single_clause"
+    # puts
+    # puts "exiting Controller#single_clause"
     return result
   end
 
 
   def multi_clause(rolls_array)
-    # puts "entering Controller#multi_clause(#{rolls_array})"
-    # puts
-
     roll_label = ""
     dice_outcomes = []
 
@@ -83,34 +126,7 @@ class Controller
     end
 
     rolls_array.each do |clause|
-      operator_factor = clause[:operator] == "+" ? 1 : -1
-      clause_is_number = clause[:value].match?(/\A\d+\z/)
-
-      if clause_is_number
-        operated_number = operator_factor * clause[:value].to_i
-        dice_outcomes.push({
-          results: [operated_number],
-          reduction: operated_number
-        })
-
-      else
-        split_value = clause[:value].split("d")
-        
-        if split_value[0] == ""
-          number_of_dice = 1
-        else
-          number_of_dice = split_value[0].to_i
-        end
-
-        dice_value = split_value[1].to_i
-
-        rolled_value = @calculator.roll(number_of_dice, dice_value)
-        rolled_value[:reduction] = operator_factor * rolled_value[:reduction]
-        rolled_value[:results].map!{|n|operator_factor * n}
-
-        dice_outcomes.push(rolled_value)
-      end
-
+      dice_outcomes.push(single_clause(clause[:value], clause[:operator])[:dice_outcome_array][0])
     end
 
     result = {
@@ -118,16 +134,11 @@ class Controller
       roll_label: roll_label
     }
 
-    # puts
-    # puts "exiting Controller#multi_clause"
     return result
   end
 
 
   def multi_arg(arguments_array)
-    # puts "entering Controller#multi_roll"
-    # puts
-
     clauses_result = []
     arith_present = arguments_array.any?(@@arith_operator_regex)
 
@@ -188,8 +199,6 @@ class Controller
 
         end
       end
-
-      # puts "sorted clauses: #{sorted_clauses}"
       
       sorted_clauses.each do |c|
         combined_clause_obj = c.class == String ? single_clause(c) : multi_clause(c)
@@ -198,11 +207,8 @@ class Controller
 
     else
       clauses_result.concat(arguments_array.map{|arg| single_clause(arg)})
-      puts clauses_result
     end
 
-    # puts
-    # puts "exiting Controller#multi_roll"
     return clauses_result
   end
 
