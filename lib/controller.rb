@@ -1,6 +1,5 @@
 require_relative "./calculator"
 require_relative "./printer"
-# Each clause should return an array of dice-roll-outcome objects
 
 class Controller
   
@@ -28,9 +27,6 @@ class Controller
 
 
   def single_clause(clause, operator = "+")
-    # puts "entering Controller#single_clause"
-    # puts
-
     dice_outcomes = []
 
     operator_factor = operator == "+" ? 1 : -1
@@ -49,15 +45,10 @@ class Controller
       if clause_is_modified
         flag = clause.split(/{|}/)[0]
         split_clause = clause.split(/{|}/)[1].split("d")
-        
-        # puts "#{split_clause}"
-        # puts flag
 
         number_of_dice = split_clause[0] == "" ? 1 : split_clause[0].to_i
         dice_value = split_clause[1].to_i
         unmodified_roll = @calculator.roll(number_of_dice, dice_value)
-        
-        # puts unmodified_roll
 
         modify_number = flag[1] || 1
         sorted_results = []
@@ -69,9 +60,6 @@ class Controller
         end
 
         new_sum = sorted_array.slice(0, modify_number.to_i).sum
-
-        # puts "sorted array: #{sorted_array}"
-        # puts sorted_array.slice(0, modify_number.to_i).sum
 
         pre_operator_roll = ({
           results: sorted_array,
@@ -110,8 +98,6 @@ class Controller
       roll_label: clause
     }
 
-    # puts
-    # puts "exiting Controller#single_clause"
     return result
   end
 

@@ -1,10 +1,12 @@
 require_relative "./calculator"
 require_relative "./printer"
 require_relative "./controller"
+require_relative "./options"
+require_relative "./deck"
 require "optparse"
 
 class Cli
-  attr_accessor :options_opened
+  # attr_accessor :options_opened
 
   # start of string, 0 or more digits, "d", 1 or more digits, end of string
   regular_clause = /\d*d\d+/
@@ -19,42 +21,12 @@ class Cli
     @calc = Calculator.new
     @printer = Printer.new
     @controller = Controller.new
-    @options_opened = false
-    @options = {}
-  end
-
-  def option_parse
-    OptionParser.new do |parser|
-      parser.banner = "Usage: roll-cli.rb [options]"
-  
-      parser.on("-h", "--help", "Show this help message") do
-        @options_opened = true
-        puts parser
-      end
-
-      parser.on("-t", "--tarot NUMBER", "The number of tarot cards to draw") do |v|
-        @options_opened = true
-        @options[:name] = v
-      end
-
-      parser.on("-p", "--playing_card NUMBER", "The number of playing cards to draw") do |v|
-        @options_opened = true
-        @options[:name] = v
-      end
-    end.parse!
+    @options = Options.new
+    @deck = Deck.new
   end
 
   def run
-    # puts "entering Cli#run"
-    # puts
-    option_parse
-
-    # puts "Arguments: #{ARGV}"
-    # puts @options_opened
-    # puts @options
-
-
-    # return if @options_opened
+    return if option_parse
 
     no_arg = ARGV.length == 0
     command_is_single = ARGV.length == 1
@@ -76,17 +48,44 @@ class Cli
         agg_result.each {|r| print_result(r)}
       end
     end
-
   end
 
 
   def print_result(result_obj)
+    puts
     @printer.print_rolling(result_obj[:roll_label])
-
     sum_of_reductions = @calc.calculate(result_obj[:dice_outcome_array])
     @printer.print_roll_outcomes(result_obj[:dice_outcome_array])
     @printer.print_clause_result(sum_of_reductions)
     puts
+  end
+
+
+  def option_parse
+    break_run = false
+
+    begin
+      @options.parse
+    rescue => exception 
+      break_run = true
+      case exception.to_s.split("-")[1]
+        when "t"
+          print_error("option t bad arg")
+        when "p"
+          print_error("option p bad arg")
+        else
+          print_error("invalid option")
+      end
+    end
+
+    if @options.opened
+      break_run = true
+      if validate_input("options", @options.options)
+        puts "nice"
+      end
+    end
+
+    return break_run
   end
 
 
@@ -136,16 +135,11 @@ class Cli
             flag_num = flag.split(/[hl]/)[1] || 1
             dice_num = dice.split("d")[0]
             modifier_too_large = flag_num.to_i > dice_num.to_i
-            # puts modifier_too_large
-            # break
-
+            break
           end  
         end
       end
 
-      puts modifier_too_large
-
-      
       if zero_sided_dice
         error = "zero sided dice"
       elsif input[0].match?(@@arith_operator_regex) || input[input.length - 1].match?(@@arith_operator_regex)
@@ -159,9 +153,23 @@ class Cli
       elsif input.reject{|c|c.match?(@@multi_clause_single_regex)}.length != 0
         error = "invalid dice roll format"
       end
+
+    when "options"
+      case input[:option]
+      when "t"
+        target_number = 78
+      when "p"
+        target_number = 52
+      end
+      
+      input_too_low = input[:number_of_cards].to_i <= 0
+      input_too_high = input[:number_of_cards].to_i > target_number
+
+      error = "option #{input[:option]} bad arg" if input_too_low || input_too_high
+
     end
 
-    # puts "error: #{error ?  error : "none"}"
+
     puts
     print_error(error) if error
     return !error
@@ -184,18 +192,16 @@ class Cli
       message = "Modifier amount cannot be zero.\nTry entering the -h tag to see HELP."
     when "modifier too large"
       message = "Modifier cannot be higher than the number of dice rolled.\nTry entering the -h tag to see HELP."
+    when "invalid option"
+      message = "Invalid option.\nTry entering the -h tag to see HELP."
+    when "option t bad arg"
+      message = "Bad argument. Your option needs to be followed by a number between 1 and 78."
+    when "option p bad arg"
+      message = "Bad argument. Your option needs to be followed by a number between 1 and 52."
     end
   
     puts "ERROR: #{message}"
+    puts
   end
 
-  
-
 end
-
-
-
-####################################################
-
-# tarot
-# playing-card-deck
