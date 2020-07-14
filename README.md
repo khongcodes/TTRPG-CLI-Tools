@@ -1,5 +1,6 @@
 # ttrpg-cli-tools
 
+- A standalone Ruby command-line ttrpg-utility
 - work in progress
 - run bin/roll with Ruby to start
 
