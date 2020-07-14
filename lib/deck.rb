@@ -2,7 +2,8 @@ require "json"
 
 class Deck
   def draw_tarot(number_of_cards = 1)
-    tarot_file = File.open("data/tarot.json", "r")
+    tarot_path = File.expand_path(File.dirname(__FILE__)).concat("/../data/tarot.json")
+    tarot_file = File.open(tarot_path, "r")
     tarot_data = JSON.load(tarot_file)
     
     card_array = tarot_data.sample(number_of_cards)
