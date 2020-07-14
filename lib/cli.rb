@@ -32,6 +32,7 @@ class Cli
     command_is_single = ARGV.length == 1
     
     if no_arg
+      puts
       print_result(@controller.no_clause)
 
     elsif command_is_single
@@ -52,7 +53,7 @@ class Cli
 
 
   def print_result(result_obj)
-    puts
+    # puts
     @printer.print_rolling(result_obj[:roll_label])
     sum_of_reductions = @calc.calculate(result_obj[:dice_outcome_array])
     @printer.print_roll_outcomes(result_obj[:dice_outcome_array])
@@ -81,7 +82,16 @@ class Cli
     if @options.opened
       break_run = true
       if validate_input("options", @options.options)
-        puts "nice"
+        number_of_cards = @options.options[:number_of_cards].to_i
+
+        case @options.options[:option]
+        when "t"
+          drawn_cards = @deck.draw_tarot(number_of_cards)
+          @printer.print_tarot(drawn_cards)
+        when "p"
+          drawn_cards = @deck.draw_playing_card(number_of_cards)
+          @printer.print_playing_cards(drawn_cards)
+        end
       end
     end
 
@@ -107,8 +117,6 @@ class Cli
       end
     
     when "multi clause"
-      puts "input: #{input}"
-      
       zero_sided_dice = false
       consecutive_operators = false
       modifier_is_zero = false

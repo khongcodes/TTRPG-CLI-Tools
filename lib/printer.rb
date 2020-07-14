@@ -29,7 +29,38 @@ class Printer
     puts result_string
   end
 
+  def print_tarot(card_array)
+    pluralized_cards_message(card_array.length, "tarot")
+    puts
+
+    card_array.each_with_index do |card, index|
+      puts card["name"]
+      puts "#{card["type"]} Arcana"
+      puts "Suit: #{card["suit"]}"
+      puts
+      puts "Description: #{card["desc"]}"
+      puts
+      puts "Meaning (upright): #{card["meaning_up"]}"
+      puts "Meaning (inverted): #{card["meaning_inv"]}"
+      puts "\n-------------------------------\n\n" unless index == card_array.length - 1
+    end
+    
+    puts
+  end
+
+  def print_playing_cards(card_array)
+    pluralized_cards_message(card_array.length, "playing")
+    puts
+    card_array.each {|c| puts c}
+    puts
+  end
+
   private
+
+  def pluralized_cards_message(card_array_length, type)
+    pluralized_cards = card_array_length == 1 ? "card" : "cards"
+    puts "#{card_array_length} #{type} #{pluralized_cards} drawn:"
+  end
 
   def print_marker
     print "=> "

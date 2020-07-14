@@ -70,9 +70,7 @@ class Options
       end
 
       parser.on("-t", "--tarot NUMBER", "The number of tarot cards to draw") do |n|
-        # puts "test"
         @opened = true
-        # puts "#{n}"
         @options[:option] = "t"
         @options[:number_of_cards] = n
       end
